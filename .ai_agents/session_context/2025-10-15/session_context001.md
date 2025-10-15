@@ -20,3 +20,4 @@ Agent: Codex
 - 2025-10-15T19:55:00Z: Drafted recommendations for adjusting client-facing prompts.
 - 2025-10-15T20:05:00Z: Updated MCP tool docstrings and README with long-term memory workflow guidance.
 - 2025-10-15T20:30:00Z: Enhanced graph completion prompts and fallback handling for empty memory retrievals.
+- 2025-10-15T20:45:00Z: Strengthened atomic fact extraction and classification prompts for temporal invalidation.

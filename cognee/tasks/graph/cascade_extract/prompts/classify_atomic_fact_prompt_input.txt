@@ -1,4 +1,5 @@
 Classify the following atomic facts along three dimensions: fact type (FACT/OPINION/PREDICTION), temporal type (ATEMPORAL/STATIC/DYNAMIC), and confidence level (0.0-1.0). Also determine validity windows and temporal metadata.
+Detect whether any fact supersedes or invalidates previously valid facts about the same subject and predicate.
 
 **Source Text Context:**
 {{ source_text }}
@@ -15,5 +16,7 @@ For each fact, provide:
 3. Confidence score reflecting classification certainty
 4. Validity window (valid_from, valid_until) based on temporal markers in the text
 5. is_open_interval flag indicating if the fact is currently valid with no known end date
+6. invalidates_fact_ids: list of fact_ids that become invalid because of this fact (if any)
+7. invalidation_reason: short explanation when invalidation occurs
 
 Use the source text to identify temporal markers and contextual clues that inform your classifications.

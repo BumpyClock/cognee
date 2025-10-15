@@ -26,6 +26,10 @@ class GraphCompletionRetriever(BaseGraphRetriever):
     _GENERIC_COMPLETION_PREFIXES = (
         "using the provided knowledge graph",
         "content generated and ready to deliver",
+        "brief answer",
+        "brief summary",
+        "short answer",
+        "concise answer",
     )
     """
     Retriever for handling graph-based completion searches.
@@ -183,9 +187,20 @@ class GraphCompletionRetriever(BaseGraphRetriever):
 
         normalized_completion = completion.strip().lower()
 
-        if not normalized_completion or any(
+        is_generic_prefix = any(
             normalized_completion.startswith(prefix) for prefix in self._GENERIC_COMPLETION_PREFIXES
-        ):
+        )
+
+        if not normalized_completion or is_generic_prefix:
+            logger.info(
+                "Graph completion generic response fallback for '%s': %s",
+                query,
+                completion,
+            )
+            return [self._build_no_memory_response(query)]
+
+        # Treat extremely short completions as low-signal unless they contain quoted evidence
+        if len(normalized_completion.split()) < 10 and '"' not in completion and "“" not in completion:
             logger.info(
                 "Graph completion generic response fallback for '%s': %s",
                 query,

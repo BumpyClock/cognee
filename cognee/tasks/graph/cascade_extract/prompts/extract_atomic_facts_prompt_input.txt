@@ -7,3 +7,12 @@ Extract atomic facts from the following text, breaking down complex sentences in
 {{ previous_facts }}
 
 Identify all atomic facts in the text, resolving pronouns and implicit references. Each fact should be a distinct, simple statement that can stand alone.
+
+Return a JSON array. For each fact include:
+- `fact_id`: stable snake_case identifier derived from subject+predicate+object (reuse existing IDs when refining).
+- `subject`, `predicate`, `object`: strings capturing the atomic statement.
+- `supporting_text`: the exact sentence or clause from the source.
+- `observed_at`: ISO date if present in the text, otherwise `"unknown"`.
+- `source_offset`: start and end character indices if provided, else `"unknown"`.
+
+If no new atomic facts are found, return an empty array `[]`.
