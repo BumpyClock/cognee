@@ -1015,7 +1015,7 @@ async def main():
         # Run Alembic migrations from the main cognee directory where alembic.ini is located
         logger.info("Running database migrations...")
         migration_result = subprocess.run(
-            ["python", "-m", "alembic", "upgrade", "head"],
+            [sys.executable, "-m", "alembic", "upgrade", "head"],
             capture_output=True,
             text=True,
             cwd=Path(__file__).resolve().parent.parent.parent,
