@@ -36,3 +36,13 @@ docker run --name pgv \
   -p 5432:5432 \
   -d pgvector/pgvector:pg17
 ```
+
+### Neo4j setup
+```bash
+docker run \
+    --name neo4j \
+    -p7474:7474 -p7687:7687 \
+    -d \
+    -e NEO4J_AUTH=neo4j/{password} \
+    neo4j:latest
+```
