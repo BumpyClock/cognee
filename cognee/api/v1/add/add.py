@@ -170,4 +170,8 @@ async def add(
     ):
         pipeline_run_info = run_info
 
+    # Mark dataset as dirty for auto-cognify worker
+    from cognee.modules.pipelines.auto_cognify import mark_dataset_dirty
+    mark_dataset_dirty(authorized_dataset.id)
+
     return pipeline_run_info

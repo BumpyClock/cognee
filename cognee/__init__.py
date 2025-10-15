@@ -15,6 +15,13 @@ from cognee.shared.logging_utils import setup_logging
 
 logger = setup_logging()
 
+# Start auto-cognify background worker
+import atexit
+from cognee.modules.pipelines.auto_cognify import start_auto_cognify_worker, stop_auto_cognify_worker
+
+start_auto_cognify_worker()
+atexit.register(stop_auto_cognify_worker)
+
 from .api.v1.add import add
 from .api.v1.delete import delete
 from .api.v1.cognify import cognify

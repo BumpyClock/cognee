@@ -176,6 +176,8 @@ async def cognify(
     data: str, graph_model_file: str = None, graph_model_name: str = None, custom_prompt: str = None
 ) -> list:
     """
+    When to use: Run this whenever you capture long-lived facts—user preferences, commitments, personas, or project decisions—that future agents must remember. Pass the exact wording you want preserved; the tool stores it and immediately rebuilds the knowledge graph so the memory is queryable.
+
     Transform ingested data into a structured knowledge graph.
 
     This is the core processing step in Cognee that converts raw text and documents
@@ -336,6 +338,8 @@ async def cognify(
 )
 async def save_interaction(data: str) -> list:
     """
+    When to use: After a meaningful conversation, feed the transcript here to log the exchange as memory, trigger cognify, and mine follow-up coding rules automatically. The interaction is stored in the `user_agent_interaction` node set so later searches surface the dialogue.
+
     Transform and save a user-agent interaction into structured knowledge.
 
     Parameters
@@ -454,6 +458,8 @@ async def codify(repo_path: str) -> list:
 @mcp.tool()
 async def search(search_query: str, search_type: str) -> list:
     """
+    When to use: Before responding to a prompt that depends on history, preferences, or prior commitments, run this to recall the stored memories. Use `GRAPH_COMPLETION` for narrative answers, `CHUNKS` for raw timeline snippets, and other modes when you need structured views.
+
     Search and query the knowledge graph for insights, information, and connections.
 
     This is the final step in the Cognee workflow that retrieves information from the
@@ -599,6 +605,8 @@ async def search(search_query: str, search_type: str) -> list:
 @mcp.tool()
 async def get_developer_rules() -> list:
     """
+    When to use: Retrieve the procedural norms and guardrails that Cognee mined from past coding sessions. Ideal before changing workflows or when a new agent joins midstream.
+
     Retrieve all developer rules that were generated based on previous interactions.
 
     This tool queries the Cognee knowledge graph and returns a list of developer
@@ -634,6 +642,8 @@ async def get_developer_rules() -> list:
 @mcp.tool()
 async def list_data(dataset_id: str = None) -> list:
     """
+    When to use: Audit the long-term memory store—check what datasets exist, what items were saved, and gather IDs before cleanup or troubleshooting.
+
     List all datasets and their data items with IDs for deletion operations.
 
     This function helps users identify data IDs and dataset IDs that can be used
@@ -755,6 +765,8 @@ async def list_data(dataset_id: str = None) -> list:
 @mcp.tool()
 async def delete(data_id: str, dataset_id: str, mode: str = "soft") -> list:
     """
+    When to use: Retire or correct stored memories. Use `soft` to remove a single claim while leaving shared entities intact; switch to `hard` when a persona or dataset should be fully purged.
+
     Delete specific data from a dataset in the Cognee knowledge graph.
 
     This function removes a specific data item from a dataset while keeping the
@@ -863,6 +875,8 @@ async def prune():
 @mcp.tool()
 async def cognify_status():
     """
+    When to use: After posting new memories, check here to confirm the auto-cognify worker finished syncing the dataset before relying on the retrieval results.
+
     Get the current status of the cognify pipeline.
 
     This function retrieves information about current and recently completed cognify operations

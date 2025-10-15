@@ -1,3 +1,6 @@
+# ABOUTME: Implements graph-based completion retrieval for Cognee memory queries.
+# ABOUTME: Collects knowledge-graph context and orchestrates LLM completions with fallbacks.
+
 from typing import Any, Optional, Type, List
 from uuid import NAMESPACE_OID, uuid5
 
@@ -20,6 +23,10 @@ logger = get_logger("GraphCompletionRetriever")
 
 
 class GraphCompletionRetriever(BaseGraphRetriever):
+    _GENERIC_COMPLETION_PREFIXES = (
+        "using the provided knowledge graph",
+        "content generated and ready to deliver",
+    )
     """
     Retriever for handling graph-based completion searches.
 
@@ -128,6 +135,16 @@ class GraphCompletionRetriever(BaseGraphRetriever):
 
         return triplets
 
+    def _build_no_memory_response(self, query: str) -> str:
+        """
+        Compose a fallback hint when no contextual memories are available.
+        """
+        return (
+            f'I don\'t have stored memories about "{query}" yet. '
+            'Try search_type="CHUNKS" or "INSIGHTS" to inspect raw notes, '
+            "or add new memories with cognify."
+        )
+
     async def get_completion(
         self,
         query: str,
@@ -148,10 +165,11 @@ class GraphCompletionRetriever(BaseGraphRetriever):
 
             - Any: A generated completion based on the query and context provided.
         """
-        triplets = context
+        triplets = context if context is not None else await self.get_context(query)
 
-        if triplets is None:
-            triplets = await self.get_context(query)
+        if not triplets:
+            logger.info("Graph completion fallback triggered: no context for '%s'", query)
+            return [self._build_no_memory_response(query)]
 
         context_text = await resolve_edges_to_text(triplets)
 
@@ -163,7 +181,19 @@ class GraphCompletionRetriever(BaseGraphRetriever):
             system_prompt=self.system_prompt,
         )
 
-        if self.save_interaction and context and triplets and completion:
+        normalized_completion = completion.strip().lower()
+
+        if not normalized_completion or any(
+            normalized_completion.startswith(prefix) for prefix in self._GENERIC_COMPLETION_PREFIXES
+        ):
+            logger.info(
+                "Graph completion generic response fallback for '%s': %s",
+                query,
+                completion,
+            )
+            return [self._build_no_memory_response(query)]
+
+        if self.save_interaction and triplets and completion:
             await self.save_qa(
                 question=query, answer=completion, context=context_text, triplets=triplets
             )

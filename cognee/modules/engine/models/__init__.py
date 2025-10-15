@@ -1,3 +1,4 @@
+from .AtomicFact import AtomicFact, FactType, TemporalType
 from .Entity import Entity
 from .EntityType import EntityType
 from .TableRow import TableRow

@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from cognee.infrastructure.llm.config import (
     get_llm_config,
 )
+from cognee.modules.engine.models.AtomicFact import AtomicFact, FactType, TemporalType
 
 if get_llm_config().llm_provider.lower() == "gemini":
     """

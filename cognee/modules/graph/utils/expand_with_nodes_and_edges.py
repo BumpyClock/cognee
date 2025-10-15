@@ -2,6 +2,7 @@ from typing import Optional
 
 from cognee.modules.chunking.models import DocumentChunk
 from cognee.modules.engine.models import Entity, EntityType
+from cognee.modules.engine.models.AtomicFact import AtomicFact
 from cognee.modules.engine.utils import (
     generate_edge_name,
     generate_node_id,
@@ -280,6 +281,109 @@ def _process_graph_edges(
             existing_edges_map[edge_key] = True
 
 
+def _process_atomic_fact_entities(
+    data_chunks: list[DocumentChunk],
+    ontology_resolver: BaseOntologyResolver,
+    added_nodes_map: dict,
+    added_ontology_nodes_map: dict,
+    name_mapping: dict,
+    key_mapping: dict,
+    existing_edges_map: dict,
+    ontology_relationships: list,
+) -> None:
+    """
+    Process AtomicFact entities from chunk.contains through ontology resolution.
+
+    This function extracts subject and object entities from AtomicFacts stored in
+    chunk.contains and runs them through ontology validation to get canonical names
+    and IDs. This ensures AtomicFact-derived entities benefit from ontology enrichment
+    and proper deduplication.
+
+    Args:
+        data_chunks: List of document chunks with contains field
+        ontology_resolver: Resolver for validating entities
+        added_nodes_map: Tracking map for processed nodes
+        added_ontology_nodes_map: Tracking map for ontology nodes
+        name_mapping: Mapping from original to canonical names
+        key_mapping: Mapping from original to canonical node keys
+        existing_edges_map: Tracking map for edges
+        ontology_relationships: List to append ontology edges
+    """
+    from cognee.shared.logging_utils import get_logger
+    logger = get_logger("expand_with_nodes_and_edges")
+
+    # Dummy entity type for AtomicFact-derived entities
+    # We don't have type information in AtomicFacts, so use a generic type
+    default_type = EntityType(
+        id=generate_node_id("Entity"),
+        name="Entity",
+        type="Entity",
+        description="Generic entity type for atomic facts",
+        ontology_valid=False,
+    )
+
+    # Count total atomic facts for logging
+    total_facts = sum(
+        len([item for item in chunk.contains if isinstance(item, AtomicFact)])
+        for chunk in data_chunks
+        if hasattr(chunk, 'contains') and chunk.contains
+    )
+
+    if total_facts > 0:
+        logger.debug(f"Processing {total_facts} atomic facts through ontology resolution")
+
+    for data_chunk in data_chunks:
+        if not hasattr(data_chunk, 'contains') or not data_chunk.contains:
+            continue
+
+        # Find AtomicFacts in chunk.contains
+        atomic_facts = [item for item in data_chunk.contains if isinstance(item, AtomicFact)]
+
+        for fact in atomic_facts:
+            # Process subject entity
+            subject_entity = _create_entity_node(
+                node_id=fact.subject,
+                node_name=fact.subject,
+                node_description=f"Subject entity from atomic fact: {fact.source_text[:100] if fact.source_text else 'N/A'}",
+                type_node=default_type,
+                ontology_resolver=ontology_resolver,
+                added_nodes_map=added_nodes_map,
+                added_ontology_nodes_map=added_ontology_nodes_map,
+                name_mapping=name_mapping,
+                key_mapping=key_mapping,
+                data_chunk=data_chunk,
+                existing_edges_map=existing_edges_map,
+                ontology_relationships=ontology_relationships,
+            )
+
+            # Process object entity
+            object_entity = _create_entity_node(
+                node_id=fact.object,
+                node_name=fact.object,
+                node_description=f"Object entity from atomic fact: {fact.source_text[:100] if fact.source_text else 'N/A'}",
+                type_node=default_type,
+                ontology_resolver=ontology_resolver,
+                added_nodes_map=added_nodes_map,
+                added_ontology_nodes_map=added_ontology_nodes_map,
+                name_mapping=name_mapping,
+                key_mapping=key_mapping,
+                data_chunk=data_chunk,
+                existing_edges_map=existing_edges_map,
+                ontology_relationships=ontology_relationships,
+            )
+
+            # Update AtomicFact with canonical names if ontology resolution found matches
+            # This ensures the fact references canonical entity names
+            normalized_subject = generate_node_name(fact.subject)
+            normalized_object = generate_node_name(fact.object)
+
+            if normalized_subject in name_mapping:
+                fact.subject = name_mapping[normalized_subject]
+
+            if normalized_object in name_mapping:
+                fact.object = name_mapping[normalized_object]
+
+
 def expand_with_nodes_and_edges(
     data_chunks: list[DocumentChunk],
     chunk_graphs: list[KnowledgeGraph],
@@ -363,6 +467,19 @@ def expand_with_nodes_and_edges(
 
         # Then process edges
         _process_graph_edges(graph, name_mapping, existing_edges_map, relationships)
+
+    # Process AtomicFact entities from chunk.contains through ontology resolution
+    # This ensures atomic fact subjects/objects get canonical names and ontology enrichment
+    _process_atomic_fact_entities(
+        data_chunks,
+        ontology_resolver,
+        added_nodes_map,
+        added_ontology_nodes_map,
+        name_mapping,
+        key_mapping,
+        existing_edges_map,
+        ontology_relationships,
+    )
 
     # Return combined results
     graph_nodes = data_chunks + list(added_ontology_nodes_map.values())

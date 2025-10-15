@@ -89,6 +89,19 @@ You can do more advanced configurations by creating .env file using our <a href=
 To use different LLM providers / database configurations, and for more info check out our <a href="https://docs.cognee.ai">documentation</a>.
 
 
+## 🧠 Long-Term Memory Workflow
+
+1. **Store durable facts with `cognify`** – whenever an agent learns something it should remember (preferences, commitments, personas, decisions), send the raw sentence or file path to `cognify`. The tool writes the data to storage and kicks off the cascade pipeline automatically.
+2. **Let auto-cognify sync the graph** – the background worker watches for new datasets, rebuilds the knowledge graph every few minutes, and updates `cognify_status` so you can confirm completion.
+3. **Retrieve before responding** – call `search` (typically with `GRAPH_COMPLETION` or `CHUNKS`) before answering questions that depend on history. This keeps responses temporally aware.
+4. **Review and maintain** – use `list_data` to audit what’s stored, and `delete` (`soft` for surgical fixes, `hard` for full resets) when memories must be retired.
+
+**Best practices**
+- Save the exact phrasing the user provided so future answers stay faithful.
+- Tag conversations with `save_interaction` to log transcripts and mine rules in one call.
+- Encourage agents to search first, answer second—Cognee is the shared source of long-term truth.
+
+
 ## 🐳 Docker Usage
 
 If you’d rather run cognee-mcp in a container, you have two options:

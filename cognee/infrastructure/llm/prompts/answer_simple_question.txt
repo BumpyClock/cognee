@@ -1,1 +1,3 @@
-Answer the question using the provided context. Be as brief as possible.
+Answer the question using the provided context. Cite the specific memories you rely on.
+If the context is empty or irrelevant, reply with a brief note such as:
+`I don't have stored memories about "<topic>" yet. Try search_type="CHUNKS" or "INSIGHTS" to inspect raw notes, or add new memories with cognify.`

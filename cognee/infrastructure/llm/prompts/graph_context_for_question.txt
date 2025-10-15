@@ -1,2 +1,6 @@
-The question is: `{{ question }}`
-and here is the context provided with a set of relationships from a knowledge graph separated by \n---\n each represented as node1 -- relation -- node2 triplet: `{{ context }}`
+You are preparing context for a knowledge-graph question answering task.
+Question: `{{ question }}`
+Context contains relationship triplets separated by \n---\n, each shown as node1 -- relation -- node2.
+If the context list is empty, note explicitly that no triplets were found.
+Triplet Context: 
+`{{ context }}`

@@ -1,7 +1,11 @@
 from datetime import datetime, timezone
 from typing import Tuple, List, Any, Dict, Optional
+from uuid import UUID
 from cognee.infrastructure.engine import DataPoint, Edge
 from cognee.modules.storage.utils import copy_model
+from cognee.modules.engine.models.AtomicFact import AtomicFact
+from cognee.modules.engine.models.Entity import Entity
+from cognee.modules.engine.utils import generate_node_name, generate_node_id
 
 
 def _extract_field_data(field_value: Any) -> List[Tuple[Optional[Edge], List[DataPoint]]]:
@@ -90,6 +94,59 @@ def _generate_property_key(data_point_id: str, relationship_key: str, target_id:
     return f"{data_point_id}_{relationship_key}_{target_id}"
 
 
+def _create_atomic_fact_invalidation_edge(
+    data_point: DataPoint,
+    added_edges: Dict[str, bool],
+) -> Optional[Tuple[UUID, UUID, str, Dict[str, Any]]]:
+    """
+    Create invalidation edge for AtomicFact if it has been invalidated.
+
+    Args:
+        data_point: The DataPoint (expected to be AtomicFact)
+        added_edges: Dictionary tracking already added edges
+
+    Returns:
+        Edge tuple if invalidation exists, None otherwise
+    """
+    # Check if this is an AtomicFact with invalidation metadata
+    if not hasattr(data_point, 'invalidated_by') or data_point.invalidated_by is None:
+        return None
+
+    invalidated_by = data_point.invalidated_by
+    invalidated_at = getattr(data_point, 'invalidated_at', None)
+
+    # Create edge key
+    edge_key = f"{data_point.id}_{invalidated_by}_invalidated_by"
+
+    # Only create edge if not already added
+    if edge_key in added_edges:
+        return None
+
+    # Create edge properties with temporal metadata
+    edge_properties = {
+        "source_node_id": data_point.id,
+        "target_node_id": invalidated_by,
+        "relationship_name": "invalidated_by",
+        "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+    # Add invalidation timestamp if available
+    if invalidated_at is not None:
+        edge_properties["invalidated_at"] = invalidated_at
+
+    # Add temporal context from the fact
+    if hasattr(data_point, 'expired_at') and data_point.expired_at is not None:
+        edge_properties["expired_at"] = data_point.expired_at
+
+    if hasattr(data_point, 'valid_until') and data_point.valid_until is not None:
+        edge_properties["valid_until"] = data_point.valid_until
+
+    # Mark edge as added
+    added_edges[edge_key] = True
+
+    return (data_point.id, invalidated_by, "invalidated_by", edge_properties)
+
+
 def _process_datapoint_field(
     data_point_id: str,
     field_name: str,
@@ -160,6 +217,80 @@ async def get_graph_from_model(
     visited_properties = visited_properties or {}
     data_point_id = str(data_point.id)
 
+    # Special handling for AtomicFact: Generate subject/predicate/object triplet structure
+    if isinstance(data_point, AtomicFact):
+        # Normalize entity names for consistency with ontology resolution
+        normalized_subject_name = generate_node_name(data_point.subject)
+        normalized_object_name = generate_node_name(data_point.object)
+
+        # Generate UUID5 IDs based on normalized names (same as expand_with_nodes_and_edges)
+        subject_id = generate_node_id(data_point.subject)
+        object_id = generate_node_id(data_point.object)
+
+        # Create subject entity node with normalized name
+        if str(subject_id) not in added_nodes:
+            subject_node = Entity(
+                id=subject_id,
+                name=normalized_subject_name,
+                description=f"Subject entity from atomic fact: {data_point.source_text[:200]}" if data_point.source_text else "Subject entity"
+            )
+            nodes.append(subject_node)
+            added_nodes[str(subject_id)] = True
+
+        # Create object entity node with normalized name
+        if str(object_id) not in added_nodes:
+            object_node = Entity(
+                id=object_id,
+                name=normalized_object_name,
+                description=f"Object entity from atomic fact: {data_point.source_text[:200]}" if data_point.source_text else "Object entity"
+            )
+            nodes.append(object_node)
+            added_nodes[str(object_id)] = True
+
+        # Create edge from subject to object with predicate and temporal metadata
+        triplet_edge_key = f"{str(subject_id)}_{str(object_id)}_{data_point.predicate}"
+        if triplet_edge_key not in added_edges:
+            edge_properties = {
+                "source_node_id": str(subject_id),
+                "target_node_id": str(object_id),
+                "relationship_name": data_point.predicate,
+                "fact_id": str(data_point.id),
+                "fact_type": data_point.fact_type.value,
+                "temporal_type": data_point.temporal_type.value,
+                "confidence": data_point.confidence,
+                "valid_from": data_point.valid_from,
+                "valid_until": data_point.valid_until,
+                "is_open_interval": data_point.is_open_interval,
+                "source_chunk_id": str(data_point.source_chunk_id),
+                "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+            }
+            # Add optional temporal fields if present
+            if data_point.expired_at is not None:
+                edge_properties["expired_at"] = data_point.expired_at
+            if data_point.invalidated_by is not None:
+                edge_properties["invalidated_by"] = str(data_point.invalidated_by)
+            if data_point.invalidated_at is not None:
+                edge_properties["invalidated_at"] = data_point.invalidated_at
+
+            # Edge tuple uses UUID objects for proper graph engine compatibility
+            edges.append((subject_id, object_id, data_point.predicate, edge_properties))
+            added_edges[triplet_edge_key] = True
+
+        # Create AtomicFact metadata node if requested (for audit trail and source tracking)
+        if include_root and data_point_id not in added_nodes:
+            # Store the full AtomicFact node for metadata tracking
+            # The triplet structure (subject/object entities + edge) is created above
+            nodes.append(data_point)
+            added_nodes[data_point_id] = True
+
+        # Handle invalidation edges (if this fact invalidated another)
+        invalidation_edge = _create_atomic_fact_invalidation_edge(data_point, added_edges)
+        if invalidation_edge:
+            edges.append(invalidation_edge)
+
+        # Return early - AtomicFact triplet structure created, don't process as generic DataPoint
+        return nodes, edges
+
     data_point_properties = {"type": type(data_point).__name__}
     excluded_properties = set()
     properties_to_visit = set()
@@ -192,6 +323,11 @@ async def get_graph_from_model(
         )
         nodes.append(SimpleDataPointModel(**data_point_properties))
         added_nodes[data_point_id] = True
+
+    # Handle AtomicFact invalidation edges (if applicable)
+    invalidation_edge = _create_atomic_fact_invalidation_edge(data_point, added_edges)
+    if invalidation_edge:
+        edges.append(invalidation_edge)
 
     # Process all relationships using generator
     for target_datapoint, field_name, edge_metadata in _targets_generator(

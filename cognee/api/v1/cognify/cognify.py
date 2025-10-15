@@ -23,9 +23,10 @@ from cognee.tasks.documents import (
     classify_documents,
     extract_chunks_from_documents,
 )
-from cognee.tasks.graph import extract_graph_from_data
+from cognee.tasks.graph.extract_graph_from_data_v2 import extract_graph_from_data as extract_graph_from_data_v2
 from cognee.tasks.storage import add_data_points
 from cognee.tasks.summarization import summarize_text
+from cognee.modules.config import get_temporal_config
 from cognee.modules.pipelines.layers.pipeline_execution_mode import get_pipeline_executor
 from cognee.tasks.temporal_graph.extract_events_and_entities import extract_events_and_timestamps
 from cognee.tasks.temporal_graph.extract_knowledge_graph_from_events import (
@@ -256,6 +257,17 @@ async def get_default_tasks(  # TODO: Find out a better way to do this (Boris's 
                 "ontology_config": {"ontology_resolver": get_default_ontology_resolver()}
             }
 
+    # Always use v2 extractor with atomic facts (now the default pipeline)
+    temporal_config = get_temporal_config()
+    ontology_resolver = config.get("ontology_config", {}).get("ontology_resolver") if config else None
+
+    extraction_task = Task(
+        extract_graph_from_data_v2,
+        n_rounds=temporal_config.extraction_rounds,
+        ontology_adapter=ontology_resolver,
+        task_config={"batch_size": 10},
+    )
+
     default_tasks = [
         Task(classify_documents),
         Task(check_permissions_on_dataset, user=user, permissions=["write"]),
@@ -264,13 +276,7 @@ async def get_default_tasks(  # TODO: Find out a better way to do this (Boris's 
             max_chunk_size=chunk_size or get_max_chunk_tokens(),
             chunker=chunker,
         ),  # Extract text chunks based on the document type.
-        Task(
-            extract_graph_from_data,
-            graph_model=graph_model,
-            config=config,
-            custom_prompt=custom_prompt,
-            task_config={"batch_size": 10},
-        ),  # Generate knowledge graphs from the document chunks.
+        extraction_task,  # Generate knowledge graphs with atomic facts (v2 cascade extractor)
         Task(
             summarize_text,
             task_config={"batch_size": 10},

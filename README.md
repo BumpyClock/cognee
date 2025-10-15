@@ -94,6 +94,64 @@ Hosted platform:
 
 ## Self-Hosted (Open Source)
 
+### ⏱️ Temporal Knowledge Graphs (Production Ready)
+
+Cognee supports **temporal atomic facts** - enabling AI agents to reason about changes over time.
+
+**✅ Default Behavior**: Atomic fact extraction is **now enabled by default** and production-ready. It runs automatically whenever you call `cognify()`.
+
+#### What are Atomic Facts?
+
+Complex sentences hide multiple events. Atomic facts break them down into timestamped triplets:
+
+**Input**: "John, who works at Google, lives in NYC."
+
+**Atomic Facts**:
+- ["John", "works at", "Google"] - STATIC, valid since 2020
+- ["John", "lives in", "NYC"] - STATIC, valid since 2022
+
+**Knowledge Graph**:
+```
+John (Entity) --[works at]--> Google (Entity)
+John (Entity) --[lives in]--> NYC (Entity)
+```
+
+#### Quick Start
+
+**1. Optional: Configure extraction in `.env`**:
+```bash
+ATOMIC_EXTRACTION_ROUNDS=2  # Optional: Number of extraction rounds (default: 2)
+ATOMIC_CLASSIFICATION_BATCH_SIZE=10  # Optional: Batch size for classification (default: 10)
+```
+
+**2. Use Cognee normally**:
+```python
+import cognee
+
+# Atomic extraction runs automatically (default behavior)
+await cognee.add("document.txt")
+await cognee.cognify()  # Automatically extracts facts, timestamps, and handles conflicts
+
+# Query temporal facts
+results = await cognee.search("When did John become CEO?", SearchType.GRAPH_COMPLETION)
+```
+
+#### What's Supported (Production Ready)
+
+✅ **Default Pipeline**: Atomic extraction runs automatically in all `cognify()` calls
+✅ **Fact Extraction**: Multi-round LLM extraction with pronoun resolution
+✅ **Temporal Classification**: ATEMPORAL, STATIC, DYNAMIC types
+✅ **Fact Classification**: FACT, OPINION, PREDICTION
+✅ **Graph Structure**: Subject→Predicate→Object triplets with temporal metadata
+✅ **Conflict Detection**: Full implementation with graph database queries
+✅ **Invalidation Persistence**: Implemented with Cypher queries
+✅ **Ontology Resolution**: AtomicFact entities processed through ontology validation
+
+✅ **Production Status**: 100% production ready - fully integrated and tested.
+
+#### Learn More
+
+See [`docs/temporal_cascade.md`](docs/temporal_cascade.md) for complete documentation.
 
 ### 📦 Installation
 
@@ -163,6 +221,38 @@ Example output:
   Cognee turns documents into AI memory.
 
 ```
+
+#### 🔄 Automatic Processing (Auto-Cognify)
+
+Cognee now automatically processes new data in the background. When you add data with `cognee.add()`, a background worker detects the changes and runs `cognee.cognify()` every ~10 minutes.
+
+**How it works:**
+- ✅ **No configuration needed** - enabled by default, no environment variables required
+- ✅ **Smart processing** - only processes datasets with new additions since the last run
+- ✅ **Non-blocking** - runs in the background without blocking your code
+- ✅ **Manual override** - you can still run `cognee.cognify()` manually for immediate processing
+
+**Example:**
+```python
+import cognee
+import asyncio
+
+async def main():
+    # Add data - it will be automatically processed in ~10 minutes
+    await cognee.add("Cognee provides automatic knowledge graph updates.")
+
+    # Want immediate processing? Just call cognify manually
+    await cognee.cognify()
+
+    # Or let the background worker handle it automatically
+    # Your data will be processed within 10 minutes
+
+if __name__ == '__main__':
+    asyncio.run(main())
+```
+
+**Note:** The auto-cognify feature is always active and cannot be disabled. This ensures your knowledge graph stays up-to-date with minimal developer effort.
+
 ##### Via CLI
 
 Let's get the basics covered
