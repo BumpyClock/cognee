@@ -21,3 +21,5 @@ Agent: Codex
 - 2025-10-15T20:05:00Z: Updated MCP tool docstrings and README with long-term memory workflow guidance.
 - 2025-10-15T20:30:00Z: Enhanced graph completion prompts and fallback handling for empty memory retrievals.
 - 2025-10-15T20:45:00Z: Strengthened atomic fact extraction and classification prompts for temporal invalidation.
+- 2025-10-15T22:55:00Z: Clarified MCP stdio behavior where cognify runs as a background task to dodge transport timeouts.
+- 2025-10-15T23:40:00Z: Added Postgres reset support to `cognee-mcp/reset_databases.py` and attempted dry-run (blocked by sandbox cache permissions).

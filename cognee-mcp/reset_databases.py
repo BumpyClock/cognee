@@ -3,7 +3,7 @@
 Database Reset Script for Cognee MCP
 
 This script resets all Cognee databases to a clean state:
-- SQLite relational database
+- SQLite/Postgres relational database
 - Neo4j graph database
 - Qdrant vector database (if configured)
 - File-based databases (Kuzu, LanceDB)
@@ -13,7 +13,7 @@ Usage:
 
 Options:
     --all               Reset all databases (default)
-    --sqlite            Reset only SQLite database
+    --sqlite            Reset only the relational database (SQLite/Postgres)
     --neo4j             Reset only Neo4j database
     --qdrant            Reset only Qdrant database
     --files             Reset only file-based databases
@@ -34,6 +34,25 @@ import shutil
 import argparse
 from pathlib import Path
 from typing import List, Tuple
+
+# Import Postgres drivers if available
+POSTGRES_AVAILABLE = False
+POSTGRES_DRIVER = None
+
+try:  # psycopg (v3)
+    import psycopg  # type: ignore
+
+    POSTGRES_AVAILABLE = True
+    POSTGRES_DRIVER = "psycopg"
+except ImportError:
+    try:  # psycopg2 fallback
+        import psycopg2  # type: ignore
+
+        POSTGRES_AVAILABLE = True
+        POSTGRES_DRIVER = "psycopg2"
+    except ImportError:
+        POSTGRES_AVAILABLE = False
+        POSTGRES_DRIVER = None
 
 # Import neo4j driver if available
 try:
@@ -254,6 +273,78 @@ def reset_qdrant(env_vars: dict, dry_run: bool = False) -> bool:
         return False
 
 
+def reset_postgres(env_vars: dict, dry_run: bool = False) -> bool:
+    """Reset Postgres database by dropping and recreating the public schema."""
+    if not POSTGRES_AVAILABLE or POSTGRES_DRIVER is None:
+        print("⚠️  Postgres driver not available. Skipping Postgres reset.")
+        return False
+
+    db_host = env_vars.get('DB_HOST', '127.0.0.1')
+    db_port = env_vars.get('DB_PORT', '5432')
+    db_name = env_vars.get('DB_NAME', 'cognee_db')
+    db_user = env_vars.get('DB_USERNAME', 'cognee')
+    db_password = env_vars.get('DB_PASSWORD', '')
+
+    print(f"\n🗑️  Postgres Database: {db_user}@{db_host}:{db_port}/{db_name}")
+
+    if dry_run:
+        print("   [DRY RUN] Would drop and recreate the 'public' schema (includes pgvector tables)")
+        return True
+
+    try:
+        if POSTGRES_DRIVER == "psycopg":
+            conn = psycopg.connect(
+                host=db_host,
+                port=db_port,
+                dbname=db_name,
+                user=db_user,
+                password=db_password,
+            )
+        else:
+            conn = psycopg2.connect(  # type: ignore[name-defined]
+                host=db_host,
+                port=db_port,
+                dbname=db_name,
+                user=db_user,
+                password=db_password,
+            )
+
+        conn.autocommit = True
+
+        with conn.cursor() as cursor:  # type: ignore[attr-defined]
+            cursor.execute(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema');"
+            )
+            table_count = cursor.fetchone()[0]
+            print(f"   Found {table_count} user table(s) to remove...")
+
+            cleanup_commands = [
+                "DROP SCHEMA IF EXISTS public CASCADE;",
+                "CREATE SCHEMA public;",
+                "GRANT ALL ON SCHEMA public TO CURRENT_USER;",
+                "GRANT ALL ON SCHEMA public TO public;",
+            ]
+
+            for command in cleanup_commands:
+                cursor.execute(command)
+
+            if env_vars.get('VECTOR_DB_PROVIDER', '').lower() == 'pgvector':
+                cursor.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+
+        conn.close()
+        print("   ✅ Postgres database cleared successfully")
+        return True
+
+    except Exception as exc:  # pragma: no cover - defensive logging
+        print(f"   ❌ Failed to reset Postgres: {exc}")
+        print("   Ensure credentials are correct and the user has permission to manage schemas.")
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return False
+
+
 def reset_sqlite(db_files: List[Path], dry_run: bool = False) -> bool:
     """Reset SQLite databases by deleting the files."""
     if not db_files:
@@ -276,6 +367,20 @@ def reset_sqlite(db_files: List[Path], dry_run: bool = False) -> bool:
                 success = False
 
     return success
+
+
+def reset_relational(env_vars: dict, sqlite_dbs: List[Path], dry_run: bool = False) -> bool:
+    """Reset the configured relational database (SQLite or Postgres)."""
+    provider = env_vars.get('DB_PROVIDER', 'sqlite').lower()
+
+    if provider == 'sqlite':
+        return reset_sqlite(sqlite_dbs, dry_run)
+
+    if provider.startswith('postgres'):
+        return reset_postgres(env_vars, dry_run)
+
+    print(f"\n⚠️  Unsupported relational database provider '{provider}'.")
+    return False
 
 
 def reset_file_databases(file_dbs: List[Tuple[str, Path]], dry_run: bool = False) -> bool:
@@ -309,7 +414,7 @@ def main():
         epilog=__doc__
     )
     parser.add_argument('--all', action='store_true', help='Reset all databases (default)')
-    parser.add_argument('--sqlite', action='store_true', help='Reset only SQLite database')
+    parser.add_argument('--sqlite', action='store_true', help='Reset only the relational database (SQLite/Postgres)')
     parser.add_argument('--neo4j', action='store_true', help='Reset only Neo4j database')
     parser.add_argument('--qdrant', action='store_true', help='Reset only Qdrant database')
     parser.add_argument('--files', action='store_true', help='Reset only file-based databases')
@@ -333,8 +438,12 @@ def main():
     if args.dry_run:
         print("\n⚠️  DRY RUN MODE - No actual changes will be made\n")
 
+    relational_provider = env_vars.get('DB_PROVIDER', 'sqlite')
+
     # Find databases
-    sqlite_dbs = find_sqlite_databases(script_dir, env_vars)
+    sqlite_dbs = []
+    if relational_provider.lower() == 'sqlite':
+        sqlite_dbs = find_sqlite_databases(script_dir, env_vars)
     file_dbs = find_file_databases(script_dir, env_vars)
 
     # Track results
@@ -342,7 +451,17 @@ def main():
 
     # Reset SQLite
     if (reset_all or args.sqlite) and not args.skip_neo4j:
-        results.append(('SQLite', reset_sqlite(sqlite_dbs, args.dry_run)))
+        provider_display = relational_provider or 'sqlite'
+        provider_lower = provider_display.lower()
+        if provider_lower == 'sqlite':
+            provider_display = 'SQLite'
+        elif provider_lower.startswith('postgres'):
+            provider_display = 'Postgres'
+        else:
+            provider_display = provider_display
+
+        relational_label = f"Relational ({provider_display})"
+        results.append((relational_label, reset_relational(env_vars, sqlite_dbs, args.dry_run)))
 
     # Reset Neo4j
     if (reset_all or args.neo4j) and not args.skip_neo4j:
