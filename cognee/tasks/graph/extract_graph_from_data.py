@@ -17,13 +17,28 @@ from cognee.modules.graph.utils import (
     retrieve_existing_edges,
 )
 from cognee.shared.data_models import KnowledgeGraph
-from cognee.infrastructure.llm.extraction import extract_content_graph
 from cognee.tasks.graph.exceptions import (
     InvalidGraphModelError,
     InvalidDataChunksError,
     InvalidChunkGraphInputError,
     InvalidOntologyAdapterError,
 )
+from cognee.modules.config import get_temporal_config
+from cognee.tasks.graph.cascade_extract.utils.extract_nodes import extract_nodes
+from cognee.tasks.graph.cascade_extract.utils.extract_content_nodes_and_relationship_names import (
+    extract_content_nodes_and_relationship_names,
+)
+from cognee.tasks.graph.cascade_extract.utils.extract_edge_triplets import (
+    extract_edge_triplets,
+)
+from cognee.tasks.graph.cascade_extract.utils.extract_atomic_facts import extract_atomic_statements
+from cognee.tasks.graph.cascade_extract.utils.classify_atomic_facts import classify_atomic_facts_temporally
+from cognee.tasks.storage.manage_atomic_fact_storage import detect_and_invalidate_conflicting_facts
+from cognee.modules.observability.atomic_fact_metrics import (
+    track_extraction,
+    track_classification,
+)
+from cognee.shared.logging_utils import get_logger
 
 
 async def integrate_chunk_graphs(
@@ -92,58 +107,126 @@ async def integrate_chunk_graphs(
     return data_chunks
 
 
+logger = get_logger("extract_graph_from_data")
+
+
 async def extract_graph_from_data(
     data_chunks: List[DocumentChunk],
-    graph_model: Type[BaseModel],
-    config: Config = None,
+    graph_model: Type[BaseModel] | None = None,
+    config: Config | None = None,
     custom_prompt: Optional[str] = None,
+    n_rounds: Optional[int] = None,
+    ontology_adapter: Optional[BaseOntologyResolver] = None,
 ) -> List[DocumentChunk]:
     """
-    Extracts and integrates a knowledge graph from the text content of document chunks using a specified graph model.
+    Unified graph extractor (temporal cascade by default) with backward-compatible signature.
+
+    Accepts legacy parameters (graph_model, config, custom_prompt) but ignores them for the
+    extraction path—atomic fact cascade is now the default. If an ontology adapter is not
+    supplied, one is resolved from environment/config.
     """
 
     if not isinstance(data_chunks, list) or not data_chunks:
         raise InvalidDataChunksError("must be a non-empty list of DocumentChunk.")
     if not all(hasattr(c, "text") for c in data_chunks):
         raise InvalidDataChunksError("each chunk must have a 'text' attribute")
-    if not isinstance(graph_model, type) or not issubclass(graph_model, BaseModel):
-        raise InvalidGraphModelError(graph_model)
 
+    # Resolve ontology adapter
+    if ontology_adapter is None:
+        if config is None:
+            ontology_config = get_ontology_env_config()
+            if (
+                ontology_config.ontology_file_path
+                and ontology_config.ontology_resolver
+                and ontology_config.matching_strategy
+            ):
+                config = {
+                    "ontology_config": {
+                        "ontology_resolver": get_ontology_resolver_from_env(
+                            **ontology_config.to_dict()
+                        )
+                    }
+                }
+            else:
+                config = {
+                    "ontology_config": {"ontology_resolver": get_default_ontology_resolver()}
+                }
+        ontology_adapter = config["ontology_config"]["ontology_resolver"]
+
+    # Determine rounds
+    temporal_config = get_temporal_config()
+    rounds = n_rounds or temporal_config.extraction_rounds
+
+    # STEP 1: Extract and classify atomic facts (temporal cascade)
+    logger.info(f"Extracting atomic facts from {len(data_chunks)} chunks (rounds={rounds})")
+
+    import time
+    start_time = time.time()
+
+    async def process_chunk_facts(chunk: DocumentChunk):
+        chunk_start = time.time()
+        facts = await extract_atomic_statements(
+            text=chunk.text, source_chunk_id=chunk.id, n_rounds=rounds
+        )
+        extraction_latency = (time.time() - chunk_start) * 1000
+        await track_extraction(
+            count=len(facts), latency_ms=extraction_latency, correlation_id="unified"
+        )
+        classify_start = time.time()
+        classified = await classify_atomic_facts_temporally(
+            facts=facts, context=f"Document chunk {chunk.chunk_index}", batch_size=temporal_config.classification_batch_size
+        )
+        classification_latency = (time.time() - classify_start) * 1000
+        await track_classification(
+            batch_size=len(classified), latency_ms=classification_latency, correlation_id="unified"
+        )
+        return chunk, classified
+
+    chunk_fact_results = await asyncio.gather(
+        *[process_chunk_facts(chunk) for chunk in data_chunks]
+    )
+
+    # Collect and resolve conflicts across all facts
+    all_facts = []
+    for chunk, classified in chunk_fact_results:
+        all_facts.extend(classified)
+
+    if all_facts:
+        all_facts = await detect_and_invalidate_conflicting_facts(
+            atomic_facts=all_facts, correlation_id="unified"
+        )
+
+    # Attach atomic facts back to chunks
+    idx = 0
+    for chunk, classified in chunk_fact_results:
+        if chunk.contains is None:
+            chunk.contains = []
+        count = len(classified)
+        chunk.contains.extend(all_facts[idx : idx + count])
+        idx += count
+
+    # STEP 2: Cascade node/edge extraction
+    chunk_nodes = await asyncio.gather(
+        *[extract_nodes(chunk.text, rounds) for chunk in data_chunks]
+    )
+    node_rel_results = await asyncio.gather(
+        *[
+            extract_content_nodes_and_relationship_names(chunk.text, nodes, rounds)
+            for chunk, nodes in zip(data_chunks, chunk_nodes)
+        ]
+    )
+    updated_nodes, relationships = zip(*node_rel_results)
     chunk_graphs = await asyncio.gather(
         *[
-            extract_content_graph(chunk.text, graph_model, custom_prompt=custom_prompt)
-            for chunk in data_chunks
+            extract_edge_triplets(chunk.text, nodes, rels, rounds)
+            for chunk, nodes, rels in zip(data_chunks, updated_nodes, relationships)
         ]
     )
 
-    # Note: Filter edges with missing source or target nodes
-    if graph_model == KnowledgeGraph:
-        for graph in chunk_graphs:
-            valid_node_ids = {node.id for node in graph.nodes}
-            graph.edges = [
-                edge
-                for edge in graph.edges
-                if edge.source_node_id in valid_node_ids and edge.target_node_id in valid_node_ids
-            ]
-
-    # Extract resolver from config if provided, otherwise get default
-    if config is None:
-        ontology_config = get_ontology_env_config()
-        if (
-            ontology_config.ontology_file_path
-            and ontology_config.ontology_resolver
-            and ontology_config.matching_strategy
-        ):
-            config: Config = {
-                "ontology_config": {
-                    "ontology_resolver": get_ontology_resolver_from_env(**ontology_config.to_dict())
-                }
-            }
-        else:
-            config: Config = {
-                "ontology_config": {"ontology_resolver": get_default_ontology_resolver()}
-            }
-
-    ontology_resolver = config["ontology_config"]["ontology_resolver"]
-
-    return await integrate_chunk_graphs(data_chunks, chunk_graphs, graph_model, ontology_resolver)
+    # Integrate into graph storage
+    return await integrate_chunk_graphs(
+        data_chunks=data_chunks,
+        chunk_graphs=chunk_graphs,
+        graph_model=KnowledgeGraph,
+        ontology_resolver=ontology_adapter,
+    )

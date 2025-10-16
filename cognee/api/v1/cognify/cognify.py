@@ -23,7 +23,7 @@ from cognee.tasks.documents import (
     classify_documents,
     extract_chunks_from_documents,
 )
-from cognee.tasks.graph.extract_graph_from_data_v2 import extract_graph_from_data as extract_graph_from_data_v2
+from cognee.tasks.graph import extract_graph_from_data
 from cognee.tasks.storage import add_data_points
 from cognee.tasks.summarization import summarize_text
 from cognee.modules.config import get_temporal_config
@@ -262,7 +262,7 @@ async def get_default_tasks(  # TODO: Find out a better way to do this (Boris's 
     ontology_resolver = config.get("ontology_config", {}).get("ontology_resolver") if config else None
 
     extraction_task = Task(
-        extract_graph_from_data_v2,
+        extract_graph_from_data,
         n_rounds=temporal_config.extraction_rounds,
         ontology_adapter=ontology_resolver,
         task_config={"batch_size": 10},

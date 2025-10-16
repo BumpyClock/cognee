@@ -16,7 +16,7 @@ from typing import List
 from cognee.modules.chunking.models.DocumentChunk import DocumentChunk
 from cognee.modules.data.processing.document_types import Document
 from cognee.modules.engine.models import AtomicFact, FactType, TemporalType
-from cognee.tasks.graph.extract_graph_from_data_v2 import extract_graph_from_data
+from cognee.tasks.graph import extract_graph_from_data
 
 from tests.fixtures import (
     load_temporal_document,

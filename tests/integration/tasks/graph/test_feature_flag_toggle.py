@@ -1,7 +1,7 @@
 """
 Integration tests for atomic fact extraction.
 
-Tests that extract_graph_from_data_v2 always runs cascade extraction with atomic facts.
+Tests that extract_graph_from_data always runs cascade extraction with atomic facts.
 This test file was updated when atomic facts became the default behavior.
 """
 
@@ -11,7 +11,7 @@ from uuid import uuid4
 from cognee.modules.chunking.models.DocumentChunk import DocumentChunk
 from cognee.modules.data.processing.document_types import Document
 from cognee.modules.engine.models import AtomicFact
-from cognee.tasks.graph.extract_graph_from_data_v2 import extract_graph_from_data
+from cognee.tasks.graph import extract_graph_from_data
 from cognee.modules.config import get_temporal_config
 
 
