@@ -24,6 +24,8 @@ You can still share the memory between agents in Stdio mode by using the same db
 
 Set the correct environment variables for the db connection in the .env file.
 
+for db set Postgres as the db type and for vector store set pgvector.
+
 ```bash
 
 ### PG Vector DB Setup
