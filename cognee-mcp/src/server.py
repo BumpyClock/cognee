@@ -163,16 +163,16 @@ async def cognee_add_developer_rules(
         types.TextContent(
             type="text",
             text=(
-                f"Started cognify for {len(tasks)} developer rule files in background.\n"
+                f"Started memorize (cognify) for {len(tasks)} developer rule files in background.\n"
                 f"All are added to the `developer_rules` node set.\n"
-                f"Use `cognify_status` or check logs at {log_file} to monitor progress."
+                f"Use `memorize_status` (formerly `cognify_status`) or check logs at {log_file} to monitor progress."
             ),
         )
     ]
 
 
-@mcp.tool()
-async def cognify(
+@mcp.tool(name="memorize")
+async def memorize(
     data: str, graph_model_file: str = None, graph_model_name: str = None, custom_prompt: str = None
 ) -> list:
     """
@@ -279,8 +279,8 @@ async def cognify(
     Notes
     -----
     - The function launches a background task and returns immediately
-    - The actual cognify process may take significant time depending on text length
-    - Use the cognify_status tool to check the progress of the operation
+    - The actual memorize process may take significant time depending on text length
+    - Use the memorize_status tool to check the progress of the operation
 
     """
 
@@ -321,7 +321,7 @@ async def cognify(
     log_file = get_log_file_location()
     text = (
         f"Background process launched due to MCP timeout limitations.\n"
-        f"To check current cognify status use the cognify_status tool\n"
+        f"To check current memorize status use the memorize_status tool\n"
         f"or check the log file at: {log_file}"
     )
 
@@ -331,6 +331,9 @@ async def cognify(
             text=text,
         )
     ]
+
+
+# (removed legacy 'cognify' tool alias)
 
 
 @mcp.tool(
@@ -382,7 +385,7 @@ async def save_interaction(data: str) -> list:
     log_file = get_log_file_location()
     text = (
         f"Background process launched to process the user-agent interaction.\n"
-        f"To check the current status, use the cognify_status tool or check the log file at: {log_file}"
+        f"To check the current status, use the memorize_status tool or check the log file at: {log_file}"
     )
 
     return [
@@ -720,7 +723,7 @@ async def list_data(dataset_id: str = None) -> list:
                     return [
                         types.TextContent(
                             type="text",
-                            text="📂 No datasets found.\nUse the cognify tool to create your first dataset!",
+                            text="📂 No datasets found.\nUse the memorize tool (formerly cognify) to create your first dataset!",
                         )
                     ]
 
@@ -872,8 +875,8 @@ async def prune():
         return [types.TextContent(type="text", text="Pruned")]
 
 
-@mcp.tool()
-async def cognify_status():
+@mcp.tool(name="memorize_status")
+async def memorize_status():
     """
     When to use: After posting new memories, check here to confirm the auto-cognify worker finished syncing the dataset before relying on the retrieval results.
 
@@ -901,6 +904,9 @@ async def cognify_status():
             [await get_unique_dataset_id("main_dataset", user)], "cognify_pipeline"
         )
         return [types.TextContent(type="text", text=str(status))]
+
+
+# (removed legacy 'cognify_status' tool alias)
 
 
 @mcp.tool()

@@ -150,11 +150,11 @@ DEBUG = True
                 tools_result = await session.list_tools()
 
                 expected_tools = {
-                    "cognify",
+                    "memorize",
                     "codify",
                     "search",
                     "prune",
-                    "cognify_status",
+                    "memorize_status",
                     "codify_status",
                     "cognee_add_developer_rules",
                     "list_data",
