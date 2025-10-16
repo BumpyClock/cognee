@@ -23,3 +23,4 @@ Agent: Codex
 - 2025-10-15T20:45:00Z: Strengthened atomic fact extraction and classification prompts for temporal invalidation.
 - 2025-10-15T22:55:00Z: Clarified MCP stdio behavior where cognify runs as a background task to dodge transport timeouts.
 - 2025-10-15T23:40:00Z: Added Postgres reset support to `cognee-mcp/reset_databases.py` and attempted dry-run (blocked by sandbox cache permissions).
+- 2025-10-15T23:58:00Z: Refined temporal extraction/classification prompts and updated retrieval/graph QA templates with timeline-aware guidance.

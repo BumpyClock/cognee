@@ -1,6 +1,6 @@
 # Sample Atomic Fact Extraction Output
 
-This document contains vetted examples demonstrating the expected output from the atomic fact extraction prompts.
+Each example shows the structure expected from the atomic fact extraction prompts. All facts include identifiers, temporal cues, and supporting evidence so temporal agents can reason about them later.
 
 ## Example 1: Compound Sentence
 
@@ -14,31 +14,36 @@ John, who works at Google, lives in NYC.
 {
   "facts": [
     {
+      "fact_id": "john_works_at_google",
       "subject": "John",
       "predicate": "works at",
-      "object": "Google"
+      "object": "Google",
+      "supporting_text": "John, who works at Google, lives in NYC.",
+      "observed_at": "unknown",
+      "source_offset": "sent_1"
     },
     {
+      "fact_id": "john_lives_in_nyc",
       "subject": "John",
       "predicate": "lives in",
-      "object": "NYC"
+      "object": "NYC",
+      "supporting_text": "John, who works at Google, lives in NYC.",
+      "observed_at": "unknown",
+      "source_offset": "sent_1"
     }
   ]
 }
 ```
 
-**Rationale:**
-- Two distinct atomic facts extracted from a compound sentence
-- Each fact contains one simple relationship
-- Pronoun resolution not needed (subject is explicit)
+**Highlights:** Pronouns already explicit, so no resolution required. Each fact records the exact clause used as evidence.
 
 ---
 
-## Example 2: Pronoun Resolution
+## Example 2: Preference Reversal with Contradiction Note
 
 **Input Text:**
 ```
-Sarah joined the company in 2020. She became CEO in 2023.
+On 2025-05-01 the user said they loved pineapple pizza. On 2025-10-16 they said they no longer like pizza.
 ```
 
 **Expected Output:**
@@ -46,37 +51,32 @@ Sarah joined the company in 2020. She became CEO in 2023.
 {
   "facts": [
     {
-      "subject": "Sarah",
-      "predicate": "joined",
-      "object": "the company"
+      "fact_id": "user_loves_pineapple_pizza",
+      "subject": "User",
+      "predicate": "loves",
+      "object": "pineapple pizza",
+      "supporting_text": "On 2025-05-01 the user said they loved pineapple pizza.",
+      "observed_at": "2025-05-01",
+      "source_offset": "sent_1"
     },
     {
-      "subject": "Sarah joined the company",
-      "predicate": "occurred in",
-      "object": "2020"
-    },
-    {
-      "subject": "Sarah",
-      "predicate": "became",
-      "object": "CEO"
-    },
-    {
-      "subject": "Sarah became CEO",
-      "predicate": "occurred in",
-      "object": "2023"
+      "fact_id": "user_dislikes_pizza",
+      "subject": "User",
+      "predicate": "dislikes",
+      "object": "pizza",
+      "supporting_text": "On 2025-10-16 they said they no longer like pizza. Supersedes fact_id=user_loves_pineapple_pizza.",
+      "observed_at": "2025-10-16",
+      "source_offset": "sent_2"
     }
   ]
 }
 ```
 
-**Rationale:**
-- "She" is resolved to "Sarah" using context
-- Temporal information extracted as separate facts
-- Event facts created to capture timing relationships
+**Highlights:** The newer statement references the prior `fact_id` directly inside `supporting_text`, helping the classifier close the earlier preference.
 
 ---
 
-## Example 3: Temporal Sequence
+## Example 3: Temporal Sequence with Events
 
 **Input Text:**
 ```
@@ -88,46 +88,63 @@ After the meeting, he went home and prepared dinner.
 {
   "facts": [
     {
-      "subject": "he",
+      "fact_id": "he_attended_meeting",
+      "subject": "He",
       "predicate": "attended",
-      "object": "the meeting"
+      "object": "the meeting",
+      "supporting_text": "After the meeting, he went home and prepared dinner.",
+      "observed_at": "unknown",
+      "source_offset": "sent_1"
     },
     {
-      "subject": "he",
+      "fact_id": "he_went_home",
+      "subject": "He",
       "predicate": "went to",
-      "object": "home"
+      "object": "home",
+      "supporting_text": "After the meeting, he went home and prepared dinner.",
+      "observed_at": "unknown",
+      "source_offset": "sent_1"
     },
     {
+      "fact_id": "he_went_home_after_meeting",
       "subject": "he went home",
       "predicate": "occurred after",
-      "object": "the meeting"
+      "object": "the meeting",
+      "supporting_text": "After the meeting, he went home and prepared dinner.",
+      "observed_at": "unknown",
+      "source_offset": "sent_1"
     },
     {
-      "subject": "he",
+      "fact_id": "he_prepared_dinner",
+      "subject": "He",
       "predicate": "prepared",
-      "object": "dinner"
+      "object": "dinner",
+      "supporting_text": "After the meeting, he went home and prepared dinner.",
+      "observed_at": "unknown",
+      "source_offset": "sent_1"
     },
     {
+      "fact_id": "he_prepared_dinner_after_going_home",
       "subject": "he prepared dinner",
       "predicate": "occurred after",
-      "object": "he went home"
+      "object": "he went home",
+      "supporting_text": "After the meeting, he went home and prepared dinner.",
+      "observed_at": "unknown",
+      "source_offset": "sent_1"
     }
   ]
 }
 ```
 
-**Rationale:**
-- Three actions extracted: attended meeting, went home, prepared dinner
-- Temporal ordering preserved through "occurred after" relationships
-- Sequential dependencies captured
+**Highlights:** Sequencing facts capture ordering without guessing specific timestamps.
 
 ---
 
-## Example 4: Cause-Effect Relationship
+## Example 4: Future-Dated Effective Statement
 
 **Input Text:**
 ```
-The company's revenue increased by 20% due to strong product sales.
+On 2025-11-01 Alicia will become CTO, replacing Omar.
 ```
 
 **Expected Output:**
@@ -135,69 +152,28 @@ The company's revenue increased by 20% due to strong product sales.
 {
   "facts": [
     {
-      "subject": "the company's revenue",
-      "predicate": "increased by",
-      "object": "20%"
+      "fact_id": "alicia_will_become_cto",
+      "subject": "Alicia",
+      "predicate": "will become",
+      "object": "CTO",
+      "supporting_text": "On 2025-11-01 Alicia will become CTO, replacing Omar. Effective 2025-11-01.",
+      "observed_at": "statement_time",
+      "source_offset": "sent_1"
     },
     {
-      "subject": "product sales",
-      "predicate": "was",
-      "object": "strong"
-    },
-    {
-      "subject": "revenue increase",
-      "predicate": "caused by",
-      "object": "strong product sales"
+      "fact_id": "omar_current_cto_until_2025_11_01",
+      "subject": "Omar",
+      "predicate": "serves as",
+      "object": "CTO",
+      "supporting_text": "On 2025-11-01 Alicia will become CTO, replacing Omar.",
+      "observed_at": "unknown",
+      "source_offset": "sent_1"
     }
   ]
 }
 ```
 
-**Rationale:**
-- Revenue increase extracted with quantitative value
-- Product sales quality captured separately
-- Causal relationship explicitly represented
-
----
-
-## Example 5: Multiple Events with Temporal Markers
-
-**Input Text:**
-```
-Tesla announced a new Model 3 variant priced at $35,000 in Q1 2024.
-```
-
-**Expected Output:**
-```json
-{
-  "facts": [
-    {
-      "subject": "Tesla",
-      "predicate": "announced",
-      "object": "new Model 3 variant"
-    },
-    {
-      "subject": "new Model 3 variant",
-      "predicate": "priced at",
-      "object": "$35,000"
-    },
-    {
-      "subject": "Tesla announced new Model 3 variant",
-      "predicate": "occurred in",
-      "object": "Q1 2024"
-    }
-  ]
-}
-```
-
-**Rationale:**
-- Announcement event extracted
-- Pricing information captured separately
-- Temporal marker preserved as a distinct fact
-
----
-
-## Example 6: Complex Multi-Event Scenario
+**Highlights:** The upcoming change is captured with explicit wording about the future activation date so classifiers can open/close intervals correctly.
 
 **Input Text:**
 ```

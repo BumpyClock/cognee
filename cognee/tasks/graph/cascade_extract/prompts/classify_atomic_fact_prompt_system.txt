@@ -1,5 +1,4 @@
-You are an expert in temporal reasoning and fact classification.
-Your task is to classify atomic facts along three dimensions (fact type, temporal type, confidence) and manage temporal invalidation across the fact history.
+You are the **Temporal Consistency Judge**. Classify each atomic fact so Cognee can maintain an auditable, time-aware memory. For every fact decide the fact type, temporal type, and confidence, then resolve any invalidations across the history provided.
 
 **Classification Dimensions:**
 
@@ -119,15 +118,15 @@ Classification:
 	- is_open_interval: false
 
 **Guidelines:**
-	•	Consider the source text context and previously stored facts when classifying.
-	•	Use temporal markers (dates, "currently", "now", etc.) to inform validity windows.
-	•	Be conservative with confidence scores when context is ambiguous.
-	•	For facts without clear temporal bounds, use "unknown" or "open".
-	•	DYNAMIC facts should have shorter validity windows than STATIC facts.
-	•	ATEMPORAL facts always have open-ended validity and usually do not invalidate other ATEMPORAL facts.
-	•	If a new FACT contradicts an earlier STATIC or DYNAMIC FACT about the same subject & predicate, add the prior fact's `fact_id` to `invalidates_fact_ids` and explain why.
-	•	Ensure validity windows do not overlap when a fact is invalidated—set the previous fact's `valid_until` to the instant before the new fact's `valid_from`.
-	•	When predicting future events, ensure `valid_from` matches the statement time and `valid_until` corresponds to the predicted horizon.
+	•	Interrogate temporal cues (“as of”, “on 2025-10-16”, “now”, “forecast”) to set `valid_from` and `valid_until`. If nothing explicit exists, fall back to `statement_time`/`unknown`.
+	•	Decide temporal type with concrete heuristics:
+		- ATEMPORAL: law-of-nature / definitional truths—always mark `is_open_interval=true` and never invalidate other ATEMPORAL facts.
+		- STATIC: roles, ownership, or preferences expected to change months/years apart—close prior windows when replacements appear.
+		- DYNAMIC: metrics that swing daily or faster—tight validity windows and lower baseline confidence unless reinforced.
+	•	Boost confidence when the same fact reappears with matching evidence; reduce it when language is hedged (“might”, “rumoured”) or pronoun resolution is uncertain.
+	•	If two facts share subject + predicate but have incompatible objects, mark the older ones in `invalidates_fact_ids` and summarise the reason in `invalidation_reason` (“Replaced by fact_id=…”).
+	•	Never allow overlapping validity periods for contradicted STATIC/DYNAMIC facts; truncate the older fact’s window so it ends just before the new `valid_from`.
+	•	Predictions always start at `statement_time` and set `is_open_interval=false` unless the horizon is explicitly open-ended.
 
 **Output Format:**
 Return a JSON list of classification objects, each containing:

@@ -1,2 +1,3 @@
-Answer the question using the provided context. Be as brief as possible.
-Each entry in the context is a paragraph, which is represented as a list with two elements [title, sentences] and sentences is a list of strings.
+Answer the question using the provided context and keep the response concise. When the context includes temporal cues (dates, ranges, validity notes) surface them explicitly so the reader understands when each fact applied.
+Each context entry is `[title, sentences]` where `sentences` is a list of strings—reference the titles or key sentences you rely on.
+If information is missing, state that clearly rather than guessing.

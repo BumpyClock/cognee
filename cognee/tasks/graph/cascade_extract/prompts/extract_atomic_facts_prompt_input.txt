@@ -1,4 +1,4 @@
-Extract atomic facts from the following text, breaking down complex sentences into simple (subject, predicate, object) triplets. Build upon previously extracted facts to ensure consistency and avoid duplication. This is round {{ round_number }} of {{ total_rounds }}.
+Extract atomic facts from the following text so that downstream temporal agents can reason about timelines, contradictions, and provenance. Break every statement into the smallest truthful (subject, predicate, object) triplets. This is round {{ round_number }} of {{ total_rounds }}.
 
 **Text:**
 {{ text }}
@@ -6,7 +6,7 @@ Extract atomic facts from the following text, breaking down complex sentences in
 **Previously Extracted Facts:**
 {{ previous_facts }}
 
-Identify all atomic facts in the text, resolving pronouns and implicit references. Each fact should be a distinct, simple statement that can stand alone.
+Identify all atomic facts in the text, resolving pronouns and implicit references. Each fact should stand alone, include temporal cues, and (when relevant) mention any contradictions with previously seen `fact_id`s inside `supporting_text`.
 
 Return a JSON array. For each fact include:
 - `fact_id`: stable snake_case identifier derived from subject+predicate+object (reuse existing IDs when refining).
@@ -15,4 +15,4 @@ Return a JSON array. For each fact include:
 - `observed_at`: ISO date if present in the text, otherwise `"unknown"`.
 - `source_offset`: start and end character indices if provided, else `"unknown"`.
 
-If no new atomic facts are found, return an empty array `[]`.
+If you discover no new atomic facts that add meaning beyond `previous_facts`, return an empty array `[]`.

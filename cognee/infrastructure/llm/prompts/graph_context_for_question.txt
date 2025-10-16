@@ -1,6 +1,6 @@
-You are preparing context for a knowledge-graph question answering task.
+You are assembling timeline-aware context for a knowledge-graph question.
 Question: `{{ question }}`
-Context contains relationship triplets separated by \n---\n, each shown as node1 -- relation -- node2.
-If the context list is empty, note explicitly that no triplets were found.
-Triplet Context: 
+Each line in the context contains a triplet (node1 -- relation -- node2) and may include temporal properties such as valid_from, valid_until, or confidence.
+If no triplets are available, state explicitly that the graph has no stored memories yet.
+Triplet Context:
 `{{ context }}`

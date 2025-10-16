@@ -1,3 +1,7 @@
-Answer the question using the provided context. Cite the specific memories you rely on.
-If the context is empty or irrelevant, reply with a brief note such as:
+Answer the question using the provided context. Always:
+- Highlight the current state first, including `valid_from`, `valid_until`, and confidence if the context contains them.
+- Summarise recent changes or conflicting memories in chronological order.
+- Cite the specific memory identifiers you rely on (e.g., chunk id, node id).
+
+If the context is empty or irrelevant, respond with a short nudge such as:
 `I don't have stored memories about "<topic>" yet. Try search_type="CHUNKS" or "INSIGHTS" to inspect raw notes, or add new memories with cognify.`

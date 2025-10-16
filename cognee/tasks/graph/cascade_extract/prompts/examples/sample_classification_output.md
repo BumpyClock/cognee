@@ -1,6 +1,6 @@
 # Sample Temporal Classification Output
 
-This document contains vetted examples demonstrating the expected output from the temporal classification prompts.
+This document contains vetted examples demonstrating the expected output from the temporal classification prompts. Each classification shows how to set fact type, temporal type, confidence, validity windows, and invalidations.
 
 ## Example 1: Financial Metric (FACT, STATIC)
 
@@ -27,7 +27,9 @@ Tesla's quarterly revenue was $25B in Q1 2024.
   "confidence": 0.95,
   "valid_from": "2024-01-01T00:00:00Z",
   "valid_until": "2024-03-31T23:59:59Z",
-  "is_open_interval": false
+  "is_open_interval": false,
+  "invalidates_fact_ids": [],
+  "invalidation_reason": ""
 }
 ```
 
@@ -64,7 +66,9 @@ Water boils at 100°C at sea level.
   "confidence": 1.0,
   "valid_from": "beginning_of_time",
   "valid_until": "open",
-  "is_open_interval": true
+  "is_open_interval": true,
+  "invalidates_fact_ids": [],
+  "invalidation_reason": ""
 }
 ```
 
@@ -101,7 +105,9 @@ As of market close today, TSLA stock is trading at $250.75.
   "confidence": 0.9,
   "valid_from": "extraction_time",
   "valid_until": "unknown",
-  "is_open_interval": true
+  "is_open_interval": true,
+  "invalidates_fact_ids": [],
+  "invalidation_reason": "Price snapshot expected to change within hours."
 }
 ```
 
@@ -139,7 +145,9 @@ Elon Musk is the CEO of Tesla.
   "confidence": 0.85,
   "valid_from": "statement_time",
   "valid_until": "open",
-  "is_open_interval": true
+  "is_open_interval": true,
+  "invalidates_fact_ids": [],
+  "invalidation_reason": ""
 }
 ```
 
@@ -176,7 +184,9 @@ The new iPhone design is beautiful and innovative.
   "confidence": 0.95,
   "valid_from": "statement_time",
   "valid_until": "open",
-  "is_open_interval": true
+  "is_open_interval": true,
+  "invalidates_fact_ids": [],
+  "invalidation_reason": ""
 }
 ```
 
@@ -213,8 +223,65 @@ Analysts predict Tesla's revenue will reach $120B by end of 2025.
   "confidence": 0.7,
   "valid_from": "statement_time",
   "valid_until": "2025-12-31T23:59:59Z",
-  "is_open_interval": false
+  "is_open_interval": false,
+  "invalidates_fact_ids": [],
+  "invalidation_reason": "Forecast through end of 2025."
 }
+```
+
+---
+
+## Example 6: Leadership Change (Invalidation Scenario)
+
+**Source Text:**
+```
+On 2025-03-01 Omar stepped down as CTO. On 2025-03-15 Alicia became CTO.
+```
+
+**Facts:**
+```json
+[
+  {
+    "fact_id": "omar_cto",
+    "subject": "Omar",
+    "predicate": "serves as",
+    "object": "CTO"
+  },
+  {
+    "fact_id": "alicia_cto",
+    "subject": "Alicia",
+    "predicate": "serves as",
+    "object": "CTO"
+  }
+]
+```
+
+**Classifications:**
+```json
+[
+  {
+    "fact_index": 0,
+    "fact_type": "FACT",
+    "temporal_type": "STATIC",
+    "confidence": 0.8,
+    "valid_from": "statement_time",
+    "valid_until": "2025-03-14T23:59:59Z",
+    "is_open_interval": false,
+    "invalidates_fact_ids": [],
+    "invalidation_reason": "Closed once successor named"
+  },
+  {
+    "fact_index": 1,
+    "fact_type": "FACT",
+    "temporal_type": "STATIC",
+    "confidence": 0.9,
+    "valid_from": "2025-03-15T00:00:00Z",
+    "valid_until": "open",
+    "is_open_interval": true,
+    "invalidates_fact_ids": ["omar_cto"],
+    "invalidation_reason": "Replaces Omar as CTO effective 2025-03-15"
+  }
+]
 ```
 
 **Rationale:**

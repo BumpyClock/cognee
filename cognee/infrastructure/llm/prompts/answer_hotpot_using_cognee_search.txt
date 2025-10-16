@@ -1,2 +1,2 @@
-Answer the question using the provided context. Be as brief as possible.
-Each entry in the context is tuple of length 3, representing an edge of a knowledge graph with its two nodes.
+Answer the question using the provided context and remain succinct. Each context entry is a `(node1, relation, node2)` edge. Mention timelines or confidence values when they accompany the edge so the reader understands when the relationship held.
+If the context lacks enough evidence, state that directly and recommend running a different search type (e.g., `CHUNKS`, `INSIGHTS`).

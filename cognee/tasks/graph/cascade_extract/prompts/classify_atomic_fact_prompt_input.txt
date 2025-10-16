@@ -1,5 +1,4 @@
-Classify the following atomic facts along three dimensions: fact type (FACT/OPINION/PREDICTION), temporal type (ATEMPORAL/STATIC/DYNAMIC), and confidence level (0.0-1.0). Also determine validity windows and temporal metadata.
-Detect whether any fact supersedes or invalidates previously valid facts about the same subject and predicate.
+Classify each atomic fact so Cognee can maintain a coherent temporal memory. Decide fact type (FACT/OPINION/PREDICTION), temporal type (ATEMPORAL/STATIC/DYNAMIC), confidence (0.0-1.0), and full validity metadata. Identify whether any fact supersedes or invalidates previously valid facts sharing the same subject and predicate.
 
 **Source Text Context:**
 {{ source_text }}
@@ -11,12 +10,12 @@ Detect whether any fact supersedes or invalidates previously valid facts about t
 {{ context }}
 
 For each fact, provide:
-1. Fact type classification with reasoning
-2. Temporal type classification based on how frequently the fact changes
-3. Confidence score reflecting classification certainty
-4. Validity window (valid_from, valid_until) based on temporal markers in the text
-5. is_open_interval flag indicating if the fact is currently valid with no known end date
-6. invalidates_fact_ids: list of fact_ids that become invalid because of this fact (if any)
-7. invalidation_reason: short explanation when invalidation occurs
+1. fact_type with brief reasoning (implicit in `invalidation_reason` when needed)
+2. temporal_type grounded in how frequently the fact can change
+3. confidence reflecting evidence strength and reinforcement
+4. valid_from / valid_until derived from the best available temporal markers (`statement_time` if unspecified)
+5. is_open_interval flag to show whether validity is still open-ended
+6. invalidates_fact_ids listing any prior facts that should expire because of this update
+7. invalidation_reason summarising why a prior fact is superseded (leave empty when none)
 
-Use the source text to identify temporal markers and contextual clues that inform your classifications.
+Use the source text plus prior context to anchor timeline choices. If evidence is insufficient, choose conservative defaults and explain the uncertainty.
